@@ -13,14 +13,12 @@ dotenv.load_dotenv()
 
 
 class ReservoirManager(Base):
-    def __init__(
-        self,
-    ):
+    def __init__(self, database=None):
         self.reservoir_overall_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/50C8256D-30C5-4B8D-9B84-2E14D5C6DF71/Data?size=1000&page=1"
         self.reservoir_detail_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/1602CA19-B224-4CC3-AA31-11B1B124530F/Data?size=1000&page=1"
         self.data = defaultdict(dict)
         self.update_time = None
-        super().__init__(time_pattern="%Y-%m-%dT%H:%M:%S")
+        super().__init__(time_pattern="%Y-%m-%dT%H:%M:%S", database=database)
 
     def get_percentage(self):
         try:
@@ -73,22 +71,20 @@ class ReservoirManager(Base):
                     datum["EffectiveWaterStorageCapacity"]
                 )
 
-    def update(self):
-        print("Update reservoir data at", datetime.now())
+    def update_func(self):
         self.update_reservoir_overall()
         self.update_reservoir_details()
 
 
 class ElectricityManager(Base):
-    def __init__(self):
+    def __init__(self, database=None):
         self.gen_use_url = "https://www.taipower.com.tw/d006/loadGraph/loadGraph/data/genloadareaperc.csv"
         self.data = None
         self.update_time = None
         self.prototype = namedtuple("Elec", ["gen", "use"])
-        super().__init__(time_pattern="%Y-%m-%d %H:%M")
+        super().__init__(time_pattern="%Y-%m-%d %H:%M", database=database)
 
-    def update(self):
-        print("Update electricity data at", datetime.now())
+    def update_func(self):
         try:
             data = pd.read_csv(self.gen_use_url, header=None)
             data.columns = [
@@ -109,7 +105,7 @@ class ElectricityManager(Base):
                 "north": self.prototype(0, 0),
                 "central": self.prototype(0, 0),
                 "south": self.prototype(0, 0),
-                "east": self.prototype(0, 0)
+                "east": self.prototype(0, 0),
             }
             return
 
@@ -119,7 +115,7 @@ class ElectricityManager(Base):
                 "north": self.prototype(data.iloc[0, 1], data.iloc[0, 2]),
                 "central": self.prototype(data.iloc[0, 3], data.iloc[0, 4]),
                 "south": self.prototype(data.iloc[0, 5], data.iloc[0, 6]),
-                "east": self.prototype(data.iloc[0, 7], data.iloc[0, 8])
+                "east": self.prototype(data.iloc[0, 7], data.iloc[0, 8]),
             }
 
     def is_outdated(self, new_time):
@@ -132,13 +128,13 @@ class ElectricityManager(Base):
 
 
 class EarthquakeManager(Base):
-    def __init__(self):
+    def __init__(self, database=None):
         self.large_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0015-001"
         self.small_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0016-001"
         self.auth = os.environ.get("CWB_AUTH")
         self.data = {"northen": [], "central": [], "southen": []}
         self.update_time = datetime.now()
-        super().__init__(time_pattern="%Y-%m-%d %H:%M:%S")
+        super().__init__(time_pattern="%Y-%m-%d %H:%M:%S", database=database)
 
     def get_thirty_day_str(self):
         # Reference: 2023-03-03T00:00:00
@@ -191,8 +187,7 @@ class EarthquakeManager(Base):
         for key in self.data.keys():
             self.data[key].sort(key=lambda x: x["time"], reverse=True)
 
-    def update(self):
-        print("Update earthquake data at", datetime.now())
+    def update_func(self):
         self.process_data(self.get_info("l"), "l")
         self.process_data(self.get_info("s"), "s")
         self.sort_earthquake_by_time()

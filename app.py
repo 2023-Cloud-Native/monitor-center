@@ -1,21 +1,27 @@
 import threading
 import time
 from flask import Flask, jsonify
+from flask_pymongo import PyMongo
 
 from api import ReservoirManager, ElectricityManager, EarthquakeManager
 
+
+app = Flask(__name__)
+app.config["JSON_AS_ASCII"] = False
+mongo = PyMongo(app, uri="mongodb://localhost:27017/monitor")
+
 # Set up update thread before app to avoid errors
 data_manager = {
-    "reservoir": [ReservoirManager(), 3600],
-    "electricity": [ElectricityManager(), 60],
-    "earthquake": [EarthquakeManager(), 100],
+    "reservoir": [ReservoirManager(mongo.db.reservoir), 3600],
+    "electricity": [ElectricityManager(mongo.db.electricity), 60],
+    "earthquake": [EarthquakeManager(mongo.db.earthquake), 100],
 }
 
 
 def update(data, update_cycle):
     while True:
-        data.update()
         time.sleep(update_cycle)
+        data.update()
 
 
 thread_manager = [
@@ -25,12 +31,9 @@ thread_manager = [
 for thread in thread_manager:
     thread.start()
 
-app = Flask(__name__)
-app.config['JSON_AS_ASCII'] = False
-
 
 @app.route("/", methods=["GET"])
-def hello_world():
+def index():
     all_data = {
         resource_name: resource_val[0].data
         for resource_name, resource_val in data_manager.items()
