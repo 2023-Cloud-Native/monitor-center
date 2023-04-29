@@ -48,4 +48,4 @@ package.nls.*.json
 l10n/
 .env
 *.ipynb
-data.log
+*.log
