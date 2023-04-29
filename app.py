@@ -1,20 +1,26 @@
+import os
 import threading
 import time
 from flask import Flask, jsonify
 from flask_pymongo import PyMongo
-
+import dotenv
 from api import ReservoirManager, ElectricityManager, EarthquakeManager
 
+# Requires to load the .env file
+dotenv.load_dotenv()
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
-mongo = PyMongo(app, uri="mongodb://localhost:27017/monitor")
+monitor_db = PyMongo(
+    app,
+    uri=f"mongodb://{os.environ['MONGODB_USERNAME']}:{os.environ['MONGODB_PASSWORD']}@{os.environ['MONGO_HOSTNAME']}:27017/{os.environ['MONGODB_DATABASE']}?authSource=monitor"
+).db
 
 # Set up update thread before app to avoid errors
 data_manager = {
-    "reservoir": [ReservoirManager(mongo.db.reservoir), 3600],
-    "electricity": [ElectricityManager(mongo.db.electricity), 60],
-    "earthquake": [EarthquakeManager(mongo.db.earthquake), 100],
+    "reservoir": [ReservoirManager(monitor_db.reservoir), 3600],
+    "electricity": [ElectricityManager(monitor_db.electricity), 60],
+    "earthquake": [EarthquakeManager(monitor_db.earthquake), 100],
 }
 
 
@@ -42,4 +48,5 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run()
+    ENVIRONMENT_PORT = os.environ.get("APP_PORT", 5000)
+    app.run(host="0.0.0.0", port=ENVIRONMENT_PORT)

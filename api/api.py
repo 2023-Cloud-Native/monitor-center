@@ -4,12 +4,8 @@ import os
 import requests
 
 import pandas as pd
-import dotenv
 
 from api.utils import Base, to_float, reservoir_data
-
-# Requires to load the .env file
-dotenv.load_dotenv()
 
 
 class ReservoirManager(Base):
@@ -75,6 +71,10 @@ class ReservoirManager(Base):
         self.update_reservoir_overall()
         self.update_reservoir_details()
 
+    def update_database(self):
+        pass
+        # self.database.insert_one({"data": self.data})
+
 
 class ElectricityManager(Base):
     def __init__(self, database=None):
@@ -125,6 +125,10 @@ class ElectricityManager(Base):
             return True
         else:
             return False
+
+    def update_database(self):
+        # Insert data by Flask_mongo
+        self.database.insert_one({"time": self.update_time, "data": self.data})
 
 
 class EarthquakeManager(Base):
@@ -191,3 +195,8 @@ class EarthquakeManager(Base):
         self.process_data(self.get_info("l"), "l")
         self.process_data(self.get_info("s"), "s")
         self.sort_earthquake_by_time()
+
+    def update_database(self):
+        # Insert data by Flask_mongo
+        pass
+        # self.database.insert_one({"time": self.update_time, "data": self.data})

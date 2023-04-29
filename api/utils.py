@@ -35,7 +35,7 @@ class Base:
 
     def update(self):
         self.update_func()
-        # self.update_database()
+        self.update_database()
         logging.info(
             f"Update {self.__class__.__name__.replace('Manager', '').lower()} data"
         )
