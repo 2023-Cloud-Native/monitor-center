@@ -11,10 +11,7 @@ dotenv.load_dotenv()
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
-monitor_db = PyMongo(
-    app,
-    uri=f"mongodb://{os.environ['MONGODB_USERNAME']}:{os.environ['MONGODB_PASSWORD']}@{os.environ['MONGO_HOSTNAME']}:27017/{os.environ['MONGODB_DATABASE']}?authSource=monitor"
-).db
+monitor_db = PyMongo(app, uri=f"mongodb://{os.environ['MONGODB_USERNAME']}:{os.environ['MONGODB_PASSWORD']}@{os.environ['MONGO_HOSTNAME']}:27017/{os.environ['MONGODB_DATABASE']}?authSource=monitor").db
 
 # Set up update thread before app to avoid errors
 data_manager = {
