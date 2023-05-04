@@ -16,13 +16,6 @@ class ReservoirManager(Base):
         self.update_time = None
         super().__init__(time_pattern="%Y-%m-%dT%H:%M:%S", database=database)
 
-    def get_percentage(self):
-        try:
-            return round(self.current_capacity * 100 / self.total_capacity, 1)
-        except Exception as e:
-            print(str(e))
-            return 0
-
     def get_info(self, type_):
         url = (
             self.reservoir_overall_url
