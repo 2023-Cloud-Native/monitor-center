@@ -25,6 +25,7 @@ class Base:
     def __init__(self, time_pattern, database):
         self.time_pattern = time_pattern
         self.database = database
+        self.logging = logging  # Force the binding
         self.update()
 
     def format_time(self, datetime_str):

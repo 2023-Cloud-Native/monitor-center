@@ -51,7 +51,7 @@ class ReservoirManager(Base):
         for datum in detail_data:
             if datum["ReservoirIdentifier"] not in reservoir_data["id_to_name"]:
                 continue
-            
+
             id_ = reservoir_data["id_to_name"][datum["ReservoirIdentifier"]]
             if id_ not in self.data:
                 continue
@@ -98,7 +98,7 @@ class ElectricityManager(Base):
                 "east_use",
             ]
         except Exception as e:
-            print(str(e))
+            self.logging.error(f"Error: {str(e)} when fetching electricity data")
             self.data = {
                 "updated_time": "N/A",
                 "north": self.prototype(0, 0),
@@ -110,7 +110,7 @@ class ElectricityManager(Base):
 
         if self.is_outdated(data.iloc[0, 0]):
             self.data = {
-                "updated_time": self.last_updated_time,
+                "updated_time": self.update_time,
                 "north": self.prototype(data.iloc[0, 1], data.iloc[0, 2]),
                 "central": self.prototype(data.iloc[0, 3], data.iloc[0, 4]),
                 "south": self.prototype(data.iloc[0, 5], data.iloc[0, 6]),
@@ -127,7 +127,8 @@ class ElectricityManager(Base):
 
     def update_database(self):
         # Insert data by Flask_mongo
-        self.database.insert_one({"time": self.update_time, "data": self.data})
+        if self.database is not None:
+            self.database.insert_one({"time": self.update_time, "data": self.data})
 
 
 class EarthquakeManager(Base):
@@ -183,8 +184,8 @@ class EarthquakeManager(Base):
         if data.status_code == 200:
             return data.json()["records"]["Earthquake"]
         else:
-            print(data.status_code)
-            return []
+            self.logging.error(f"Error: {data.status_code} code when fetching earthquake data")
+            return {}
 
     def sort_earthquake_by_time(self):
         for key in self.data.keys():
