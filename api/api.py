@@ -29,10 +29,13 @@ class ReservoirManager(Base):
             if type_ == "overall"
             else self.reservoir_detail_url
         )
-        data = requests.get(url)
-        if data.status_code == 200:
-            return data.json()["responseData"]
-        else:
+        try:
+            data = requests.get(url)
+            if data.status_code == 200:
+                return data.json()["responseData"]
+            else:
+                raise requests.exceptions.RequestException
+        except requests.exceptions.RequestException:
             return []
 
     def update_reservoir_overall(self):
@@ -53,6 +56,9 @@ class ReservoirManager(Base):
     def update_reservoir_details(self):
         detail_data = self.get_info("details")
         for datum in detail_data:
+            if datum["ReservoirIdentifier"] not in reservoir_data["id_to_name"]:
+                continue
+            
             id_ = reservoir_data["id_to_name"][datum["ReservoirIdentifier"]]
             if id_ not in self.data:
                 continue
