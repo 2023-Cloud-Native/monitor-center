@@ -8,10 +8,14 @@ def test_electricity_fail():
     electricity_manager.update_func()
     assert isinstance(electricity_manager.data, dict)
     assert electricity_manager.data["updated_time"] == "N/A"
-    assert electricity_manager.data["north"] == (0, 0)
-    assert electricity_manager.data["central"] == (0, 0)
-    assert electricity_manager.data["south"] == (0, 0)
-    assert electricity_manager.data["east"] == (0, 0)
+    assert electricity_manager.data["north_gen"] == 0
+    assert electricity_manager.data["north_use"] == 0
+    assert electricity_manager.data["central_gen"] == 0
+    assert electricity_manager.data["central_use"] == 0
+    assert electricity_manager.data["south_gen"] == 0
+    assert electricity_manager.data["south_use"] == 0
+    assert electricity_manager.data["east_gen"] == 0
+    assert electricity_manager.data["east_use"] == 0
 
 
 def test_electricity_outdated():
@@ -31,7 +35,11 @@ def test_electricity_normal():
 
         assert isinstance(electricity_manager.data, dict)
         assert isinstance(electricity_manager.data["updated_time"], datetime.datetime)
-        assert isinstance(electricity_manager.data["north"], tuple)
-        assert isinstance(electricity_manager.data["central"], tuple)
-        assert isinstance(electricity_manager.data["south"], tuple)
-        assert isinstance(electricity_manager.data["east"], tuple)
+        assert isinstance(electricity_manager.data["north_gen"], float)
+        assert isinstance(electricity_manager.data["north_use"], float)
+        assert isinstance(electricity_manager.data["central_gen"], float)
+        assert isinstance(electricity_manager.data["central_use"], float)
+        assert isinstance(electricity_manager.data["south_gen"], float)
+        assert isinstance(electricity_manager.data["south_use"], float)
+        assert isinstance(electricity_manager.data["east_gen"], float)
+        assert isinstance(electricity_manager.data["east_use"], float)

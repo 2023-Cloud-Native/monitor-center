@@ -14,16 +14,19 @@ def test_earthquake_fail():
 
 def test_earthquake_time():
     earthquake_manager = EarthquakeManager()
-    earthquake_manager.update_time = earthquake_manager.format_time("2100-01-31 00:00:00")
+    earthquake_manager.update_time = earthquake_manager.format_time(
+        "2100-01-31 00:00:00"
+    )
     assert earthquake_manager.get_thirty_day_str() == "2100-01-01T00:00:00"
 
 
 def test_earthquake_normal():
     earthquake_manager = EarthquakeManager()
     assert isinstance(earthquake_manager.data, dict)
-    assert "northen" in earthquake_manager.data
-    assert "central" in earthquake_manager.data
-    assert "southen" in earthquake_manager.data
+    assert "桃園" in earthquake_manager.data
+    assert "新竹" in earthquake_manager.data
+    assert "臺中" in earthquake_manager.data
+    assert "臺南" in earthquake_manager.data
 
     # Check sort time
     for key in earthquake_manager.data.keys():
