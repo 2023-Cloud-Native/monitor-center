@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from collections import namedtuple, defaultdict
 import os
 import requests
 
@@ -12,7 +11,12 @@ class ReservoirManager(Base):
     def __init__(self, database=None):
         self.reservoir_overall_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/50C8256D-30C5-4B8D-9B84-2E14D5C6DF71/Data?size=1000&page=1"
         self.reservoir_detail_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/1602CA19-B224-4CC3-AA31-11B1B124530F/Data?size=1000&page=1"
-        self.data = defaultdict(dict)
+        self.data = {
+            "桃園": dict(),
+            "新竹": dict(),
+            "臺中": dict(),
+            "臺南": dict(),
+        }
         self.update_time = None
         super().__init__(time_pattern="%Y-%m-%dT%H:%M:%S", database=database)
 
@@ -36,33 +40,42 @@ class ReservoirManager(Base):
         for datum in overall_data:
             id_ = datum["ReservoirIdentifier"]
 
-            if id_ not in reservoir_data["id_to_name"]:
+            if (
+                id_ not in reservoir_data["id_to_name"]
+                or reservoir_data["id_to_town_name"][id_][:2] not in self.data.keys()
+            ):
                 continue
 
-            id_ = reservoir_data["id_to_name"][id_]
-
-            self.data[id_]["total_capacity"] = to_float(datum["EffectiveCapacity"])
-            self.data[id_]["inflow"] = to_float(datum["InflowVolume"])
-            self.data[id_]["outflow"] = to_float(datum["OutflowTotal"])
-            self.data[id_]["updated_time"] = self.format_time(datum["RecordTime"])
+            town_name = reservoir_data["id_to_town_name"][id_][:2]
+            reservoir_name = reservoir_data["id_to_name"][id_]
+            self.data[town_name][reservoir_name] = {
+                "total_capacity": to_float(datum["EffectiveCapacity"]),
+                "inflow": to_float(datum["InflowVolume"]),
+                "outflow": to_float(datum["OutflowTotal"]),
+                "updated_time": self.format_time(datum["RecordTime"]),
+            }
 
     def update_reservoir_details(self):
         detail_data = self.get_info("details")
         for datum in detail_data:
-            if datum["ReservoirIdentifier"] not in reservoir_data["id_to_name"]:
+            id_ = datum["ReservoirIdentifier"]
+            if (id_ not in reservoir_data["id_to_name"]) or (
+                reservoir_data["id_to_town_name"][id_][:2] not in self.data.keys()
+            ):
                 continue
 
-            id_ = reservoir_data["id_to_name"][datum["ReservoirIdentifier"]]
-            if id_ not in self.data:
+            town_name = reservoir_data["id_to_town_name"][id_][:2]
+            reservoir_name = reservoir_data["id_to_name"][id_]
+            if reservoir_name not in self.data[town_name]:
                 continue
 
             observed_time = self.format_time(datum["ObservationTime"])
             if (
-                "updated_time" not in self.data[id_]
-                or self.data[id_]["updated_time"] < observed_time
+                "updated_time" not in self.data[town_name][reservoir_name]
+                or self.data[town_name][reservoir_name]["updated_time"] < observed_time
             ):
-                self.data[id_]["updated_time"] = observed_time
-                self.data[id_]["current_capacity"] = to_float(
+                self.data[town_name][reservoir_name]["updated_time"] = observed_time
+                self.data[town_name][reservoir_name]["current_capacity"] = to_float(
                     datum["EffectiveWaterStorageCapacity"]
                 )
 
@@ -80,7 +93,6 @@ class ElectricityManager(Base):
         self.gen_use_url = "https://www.taipower.com.tw/d006/loadGraph/loadGraph/data/genloadareaperc.csv"
         self.data = None
         self.update_time = None
-        self.prototype = namedtuple("Elec", ["gen", "use"])
         super().__init__(time_pattern="%Y-%m-%d %H:%M", database=database)
 
     def update_func(self):
@@ -101,20 +113,28 @@ class ElectricityManager(Base):
             self.logging.error(f"Error: {str(e)} when fetching electricity data")
             self.data = {
                 "updated_time": "N/A",
-                "north": self.prototype(0, 0),
-                "central": self.prototype(0, 0),
-                "south": self.prototype(0, 0),
-                "east": self.prototype(0, 0),
+                "north_gen": 0,
+                "north_use": 0,
+                "central_gen": 0,
+                "central_use": 0,
+                "south_gen": 0,
+                "south_use": 0,
+                "east_gen": 0,
+                "east_use": 0,
             }
             return
 
         if self.is_outdated(data.iloc[0, 0]):
             self.data = {
                 "updated_time": self.update_time,
-                "north": self.prototype(data.iloc[0, 1], data.iloc[0, 2]),
-                "central": self.prototype(data.iloc[0, 3], data.iloc[0, 4]),
-                "south": self.prototype(data.iloc[0, 5], data.iloc[0, 6]),
-                "east": self.prototype(data.iloc[0, 7], data.iloc[0, 8]),
+                "north_gen": data.iloc[0, 1],
+                "north_use": data.iloc[0, 2],
+                "central_gen": data.iloc[0, 3],
+                "central_use": data.iloc[0, 4],
+                "south_gen": data.iloc[0, 5],
+                "south_use": data.iloc[0, 6],
+                "east_gen": data.iloc[0, 7],
+                "east_use": data.iloc[0, 8],
             }
 
     def is_outdated(self, new_time):
@@ -136,9 +156,22 @@ class EarthquakeManager(Base):
         self.large_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0015-001"
         self.small_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0016-001"
         self.auth = os.environ.get("CWB_AUTH")
-        self.data = {"northen": [], "central": [], "southen": []}
+        self.data = {
+            "桃園": [],
+            "新竹": [],
+            "臺中": [],
+            "臺南": [],
+        }
         self.update_time = datetime.now()
         super().__init__(time_pattern="%Y-%m-%d %H:%M:%S", database=database)
+
+    def reset(self):
+        self.data = {
+            "桃園": [],
+            "新竹": [],
+            "臺中": [],
+            "臺南": [],
+        }
 
     def get_thirty_day_str(self):
         # Reference: 2023-03-03T00:00:00
@@ -153,23 +186,24 @@ class EarthquakeManager(Base):
             # TODO: pga and pgv can be calculated here, left for future work
             """
             depth = earthquake_info["FocalDepth"]
-            center = earthquake_info["Epicenter"]["Location"]
+            
             magnitude = earthquake_info["EarthquakeMagnitude"]["MagnitudeValue"]
             """
-
+            center = earthquake_info["Epicenter"]["Location"]
             shaking_areas = earthquake["Intensity"]["ShakingArea"]
             for area in shaking_areas:
                 area_names = area["CountyName"].split("、")
-
+                if len(area["EqStation"]) == 0:
+                    continue
                 for area_name in area_names:
-                    if area_name not in reservoir_data["county_to_area"]:
+                    if area_name[:2] not in self.data.keys():
                         continue
 
                     observe_intensity = area["AreaIntensity"]
 
-                    self.data[reservoir_data["county_to_area"][area_name]].append(
+                    self.data[area_name[:2]].append(
                         {
-                            "area": area_name,
+                            "source": center[:3],
                             "time": self.format_time(time),
                             "type": type,
                             "observe_intensity": observe_intensity,
@@ -184,7 +218,9 @@ class EarthquakeManager(Base):
         if data.status_code == 200:
             return data.json()["records"]["Earthquake"]
         else:
-            self.logging.error(f"Error: {data.status_code} code when fetching earthquake data")
+            self.logging.error(
+                f"Error: {data.status_code} code when fetching earthquake data"
+            )
             return {}
 
     def sort_earthquake_by_time(self):
@@ -192,6 +228,7 @@ class EarthquakeManager(Base):
             self.data[key].sort(key=lambda x: x["time"], reverse=True)
 
     def update_func(self):
+        self.reset()
         self.process_data(self.get_info("l"), "l")
         self.process_data(self.get_info("s"), "s")
         self.sort_earthquake_by_time()
