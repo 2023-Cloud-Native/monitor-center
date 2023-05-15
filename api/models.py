@@ -13,21 +13,30 @@ class Reservoir(Base):
     __tablename__ = "reservoir"
     _id = Column(Integer, primary_key=True)
     area = Column(String, index=True, nullable=False)
-    in_flow = Column(Float, nullable=False)
-    out_flow = Column(Float, nullable=False)
+    inflow = Column(Float, nullable=False)
+    outflow = Column(Float, nullable=False)
     total_capacity = Column(Float, nullable=False)
     current_capacity = Column(Float, nullable=False)
-    update_time = Column(DateTime, index=False, nullable=False)
+    percentage = Column(Float, nullable=False)
+    updated_time = Column(DateTime, index=False, nullable=False)
 
     def __init__(
-        self, area, in_flow, out_flow, total_capacity, current_capacity, update_time
+        self,
+        area,
+        inflow,
+        outflow,
+        total_capacity,
+        current_capacity,
+        percentage,
+        updated_time,
     ):
         self.area = area
-        self.in_flow = in_flow
-        self.out_flow = out_flow
+        self.inflow = inflow
+        self.outflow = outflow
         self.total_capacity = total_capacity
         self.current_capacity = current_capacity
-        self.update_time = update_time
+        self.percentage = percentage
+        self.updated_time = updated_time
 
 
 class Electricity(Base):
@@ -39,7 +48,7 @@ class Electricity(Base):
     central_usage = Column(Float, nullable=False)
     south_generate = Column(Float, nullable=False)
     south_usage = Column(Float, nullable=False)
-    update_time = Column(DateTime, index=False, nullable=False)
+    updated_time = Column(DateTime, index=False, nullable=False)
 
     def __init__(
         self,
@@ -49,7 +58,7 @@ class Electricity(Base):
         central_usage,
         south_generate,
         south_usage,
-        update_time,
+        updated_time,
     ):
         self.north_generate = north_generate
         self.north_usage = north_usage
@@ -57,7 +66,7 @@ class Electricity(Base):
         self.central_usage = central_usage
         self.south_generate = south_generate
         self.south_usage = south_usage
-        self.update_time = update_time
+        self.updated_time = updated_time
 
 
 class Earthquake(Base):
@@ -65,19 +74,24 @@ class Earthquake(Base):
     _id = Column(Integer, primary_key=True)
     area = Column(String, index=True, nullable=False)
     source = Column(String, nullable=False)
-    observe_intensity = Column(Float, nullable=False)
+    number = Column(Integer, index=True, nullable=False)
+    observed_intensity = Column(String, nullable=False)
     pga = Column(Float, nullable=False)
     pgv = Column(Float, nullable=False)
-    observe_time = Column(DateTime, index=True, nullable=False)
+    observed_time = Column(DateTime, index=True, nullable=False)
 
-    def __init__(self, area, source, observe_intensity, pga, pgv, observe_time):
+    def __init__(
+        self, area, source, number, observed_intensity, pga, pgv, observed_time
+    ):
         self.area = area
         self.source = source
-        self.observe_intensity = observe_intensity
+        self.number = number
+        self.observed_intensity = observed_intensity
         self.pga = pga
         self.pgv = pgv
-        self.observe_time = observe_time
+        self.observed_time = observed_time
 
 
-engine = create_engine(os.getenv("DATABASE_URL"))
+engine = create_engine(os.getenv("DATABASE_URL"), echo=True)
+Base.metadata.create_all(engine)
 DBSession = sessionmaker(bind=engine)

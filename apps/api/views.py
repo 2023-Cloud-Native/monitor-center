@@ -1,44 +1,84 @@
-import time
-import threading
-
+import datetime
 from flask import Blueprint, jsonify
-from api import ReservoirManager, ElectricityManager, EarthquakeManager
+from sqlalchemy import desc
 from apps.app import db
-from apps.api.models import Reservoir, Electricity, Earthquake
+from api.models import Reservoir, Electricity, Earthquake
+
+
+def process_reservoir():
+    areas = [u"新竹", u"臺中", u"臺南"]
+    data = {}
+    
+    for area in areas:
+        reservoir_data = db.query(Reservoir).filter_by(area=area).order_by(desc(Reservoir.updated_time)).first()
+        if reservoir_data is None:
+            data[area] = {}
+        else:
+            data[area] = {
+                "area": area,
+                "inflow": reservoir_data.inflow,
+                "outflow": reservoir_data.outflow,
+                "total_capacity": reservoir_data.total_capacity,
+                "current_capacity": reservoir_data.current_capacity,
+                "percentage": reservoir_data.percentage,
+                "updated_time": reservoir_data.updated_time.strftime(r"%Y-%m-%d %H:%M:%S"),
+            }
+        
+    return data
+
+
+def process_electricity():
+    electricity_data = db.query(Electricity).order_by(desc(Electricity.updated_time)).first()
+    if electricity_data is None:
+        return {}
+    else:
+        return {
+            "north_generate": electricity_data.north_generate,
+            "north_usage": electricity_data.north_usage,
+            "central_generate": electricity_data.central_generate,
+            "central_usage": electricity_data.central_usage,
+            "south_generate": electricity_data.south_generate,
+            "south_usage": electricity_data.south_usage,
+            "updated_time": electricity_data.updated_time.strftime(r"%Y-%m-%d %H:%M:%S"),
+        }
+
+
+def process_earthquake():
+    earthquakes = db.query(Earthquake).order_by(desc(Earthquake.observed_time)).all()
+    data = {
+        u"新竹": [],
+        u"臺中": [],
+        u"臺南": []
+    }
+    current_time = datetime.datetime.now()
+    for earthquake in earthquakes:
+        data_time = earthquake.observed_time
+        if current_time - data_time > datetime.timedelta(days=30):
+            break
+        data[earthquake.area].append(
+            {
+                "source": earthquake.source,
+                "observed_intenstiy": earthquake.observed_intensity,
+                "pga": earthquake.pga,
+                "pgv": earthquake.pgv,
+                "observed_time": data_time.strftime(r"%Y-%m-%d %H:%M:%S"),
+            }
+        )
+    return data
+
 
 api = Blueprint("api", __name__)
-
-
-def update(data, update_cycle):
-    while True:
-        time.sleep(update_cycle)
-        data.update()
-
-
-data_manager = {
-    "reservoir": [ReservoirManager(db, Reservoir), 3600],
-    "electricity": [ElectricityManager(db, Electricity), 60],
-    "earthquake": [EarthquakeManager(db, Earthquake), 100],
-    "start": False,
+resources = {
+    "Reservoir": process_reservoir,
+    "Electricity": process_electricity,
+    "Earthquake": process_earthquake,
 }
-
-thread_manager = [
-    threading.Thread(target=update, args=(*data,), daemon=True)
-    for data in data_manager.values()
-    if isinstance(data, list)
-]
 
 
 @api.route("/")
 def index():
-    if not data_manager.get("start", False):
-        data_manager["start"] = True
-        for thread in thread_manager:
-            thread.start()
-
     all_data = {
-        resource_name: resource_val[0].data
-        for resource_name, resource_val in data_manager.items()
-        if resource_name != "start"
+        resource_name: resource_func()
+        for resource_name, resource_func in resources.items()
     }
     return jsonify(all_data)

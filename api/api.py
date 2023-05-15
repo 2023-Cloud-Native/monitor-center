@@ -3,10 +3,11 @@ import math
 from datetime import datetime, timedelta
 import os
 import requests
+from sqlalchemy import desc
 
 import pandas as pd
 
-from api.utils import Base, to_float, reservoir_data
+from api.utils import Base, to_float, county_data
 
 
 def geo_distance(geo_1, geo_2):
@@ -41,7 +42,8 @@ class ReservoirManager(Base):
             "臺中": defaultdict(float),
             "臺南": defaultdict(float),
         }
-        self.update_time = None
+        self.require_update_database = False
+        self.updated_time = None
         super().__init__(
             time_pattern="%Y-%m-%dT%H:%M:%S",
             database=database,
@@ -65,57 +67,45 @@ class ReservoirManager(Base):
 
     def update_reservoir_overall(self):
         overall_data = self.get_info("overall")
+        if not len(overall_data):
+            self.require_update_database = False
+            return
+
         for datum in overall_data:
             id_ = datum["ReservoirIdentifier"]
 
-            if (
-                id_ not in reservoir_data["id_to_name"]
-                or reservoir_data["id_to_town_name"][id_][:2] not in self.data.keys()
-            ):
+            if id_ not in county_data["id_to_county"]:
                 continue
 
-            town_name = reservoir_data["id_to_town_name"][id_][:2]
-            # reservoir_name = reservoir_data["id_to_name"][id_]
-            # self.data[town_name][reservoir_name] = {
-            #     "total_capacity": to_float(datum["EffectiveCapacity"]),
-            #     "inflow": to_float(datum["InflowVolume"]),
-            #     "outflow": to_float(datum["OutflowTotal"]),
-            #     "updated_time": self.format_time(datum["RecordTime"]),
-            # }
-
-            self.data[town_name]["total_capacity"] += to_float(
+            town_name = county_data["id_to_county"][id_]
+            self.data[town_name]["current_capacity"] += to_float(
                 datum["EffectiveCapacity"]
             )
             self.data[town_name]["inflow"] += to_float(datum["InflowVolume"])
             self.data[town_name]["outflow"] += to_float(datum["OutflowTotal"])
             self.data[town_name]["updated_time"] = datetime.now()
+        self.require_update_database = True
 
     def update_reservoir_details(self):
         detail_data = self.get_info("details")
+        if not len(detail_data):
+            self.require_update_database = False
+            return
+
         for datum in detail_data:
             id_ = datum["ReservoirIdentifier"]
-            if (id_ not in reservoir_data["id_to_name"]) or (
-                reservoir_data["id_to_town_name"][id_][:2] not in self.data.keys()
-            ):
+            if id_ not in county_data["id_to_county"]:
                 continue
 
-            town_name = reservoir_data["id_to_town_name"][id_][:2]
-            reservoir_name = reservoir_data["id_to_name"][id_]
-            if reservoir_name not in self.data[town_name]:
-                continue
-
-            # observed_time = self.format_time(datum["ObservationTime"])
-            # if (
-            #     "updated_time" not in self.data[town_name][reservoir_name]
-            #     or self.data[town_name][reservoir_name]["updated_time"] < observed_time
-            # ):
-            #     self.data[town_name][reservoir_name]["updated_time"] = observed_time
-            #     self.data[town_name][reservoir_name]["current_capacity"] = to_float(
-            #         datum["EffectiveWaterStorageCapacity"]
-            #     )
-            self.data[town_name]["current_capacity"] += to_float(
+            town_name = county_data["id_to_county"][id_]
+            self.data[town_name]["total_capacity"] += to_float(
                 datum["EffectiveWaterStorageCapacity"]
             )
+        for key in self.data.keys():
+            self.data[key]["percentage"] = (
+                self.data[key]["current_capacity"] / self.data[key]["total_capacity"]
+            )
+        self.require_update_database = True
 
     def update_func(self):
         self.data = {
@@ -127,15 +117,28 @@ class ReservoirManager(Base):
         self.update_reservoir_details()
 
     def update_database(self):
-        pass
-        # self.database.insert_one({"data": self.data})
+        if self.database is not None and self.require_update_database:
+            for town_name, town_data in self.data.items():
+                self.database.add(
+                    self.instance_cls(
+                        area=town_name,
+                        current_capacity=town_data["current_capacity"],
+                        total_capacity=town_data["total_capacity"],
+                        percentage=town_data["percentage"],
+                        inflow=town_data["inflow"],
+                        outflow=town_data["outflow"],
+                        updated_time=town_data["updated_time"],
+                    )
+                )
+            self.database.commit()
+            self.require_update_database = False
 
 
 class ElectricityManager(Base):
     def __init__(self, database=None, instance_cls=None):
         self.gen_use_url = "https://www.taipower.com.tw/d006/loadGraph/loadGraph/data/genloadareaperc.csv"
         self.data = None
-        self.update_time = None
+        self.updated_time = None
         self.require_update_database = False
         super().__init__(
             time_pattern="%Y-%m-%d %H:%M", database=database, instance_cls=instance_cls
@@ -172,7 +175,7 @@ class ElectricityManager(Base):
         if self.is_outdated(data.iloc[0, 0]):
             self.require_update_database = True
             self.data = {
-                "updated_time": self.update_time,
+                "updated_time": self.updated_time,
                 "north_gen": data.iloc[0, 1],
                 "north_use": data.iloc[0, 2],
                 "central_gen": data.iloc[0, 3],
@@ -183,16 +186,16 @@ class ElectricityManager(Base):
 
     def is_outdated(self, new_time):
         new_time = self.format_time(new_time)
-        if self.update_time is None or new_time > self.update_time:
-            self.update_time = new_time
+        if self.updated_time is None or new_time > self.updated_time:
+            self.updated_time = new_time
             return True
         else:
             return False
 
     def update_database(self):
-        if self.database is not None:
-            last_data = self.instance_cls.query.first()
-            if last_data is not None and last_data.update_time >= self.update_time:
+        if self.database is not None and self.require_update_database:
+            latest_data = self.database.query(self.instance_cls).first()
+            if latest_data is not None and latest_data.updated_time == self.updated_time:
                 return
 
             instance = self.instance_cls(
@@ -202,10 +205,10 @@ class ElectricityManager(Base):
                 central_usage=self.data["central_use"],
                 south_generate=self.data["south_gen"],
                 south_usage=self.data["south_use"],
-                update_time=self.data["updated_time"],
+                updated_time=self.data["updated_time"],
             )
-            self.database.session.add(instance)
-            self.database.session.commit()
+            self.database.add(instance)
+            self.database.commit()
             self.require_update_database = False
 
 
@@ -214,17 +217,13 @@ class EarthquakeManager(Base):
         self.large_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0015-001"
         self.small_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0016-001"
         self.auth = os.environ.get("CWB_AUTH")
-        self.pos = {
-            "新竹": (24.773, 121.01, 1.758),
-            "臺中": (24.2115, 120.618, 1.063),
-            "臺南": (23.1135, 120.272, 1.968),
-        }
+        self.require_update_database = False
         self.data = {
             "新竹": [],
             "臺中": [],
             "臺南": [],
         }
-        self.update_time = datetime.now()
+        self.updated_time = datetime.now()
         super().__init__(
             time_pattern="%Y-%m-%d %H:%M:%S",
             database=database,
@@ -241,12 +240,13 @@ class EarthquakeManager(Base):
     def get_thirty_day_str(self):
         # Reference: 2023-03-03T00:00:00
         return datetime.strftime(
-            self.update_time - timedelta(days=30), "%Y-%m-%dT%H:%M:%S"
+            self.updated_time - timedelta(days=30), "%Y-%m-%dT%H:%M:%S"
         )
 
-    def process_data(self, data, type):
+    def process_data(self, data):
         for earthquake in data:
             earthquake_info = earthquake["EarthquakeInfo"]
+            earthquake_number = earthquake["EarthquakeNo"]
             time = earthquake_info["OriginTime"]
             depth = earthquake_info["FocalDepth"]
             magnitude = earthquake_info["EarthquakeMagnitude"]["MagnitudeValue"]
@@ -263,18 +263,22 @@ class EarthquakeManager(Base):
                     if area_name[:2] not in self.data.keys():
                         continue
 
-                    observe_intensity = area["AreaIntensity"]
+                    observed_intensity = area["AreaIntensity"]
                     pga, pgv = compute_pga_pgv(
-                        geo_distance(self.pos[area_name[:2]], (latitude, longitude)),
+                        geo_distance(
+                            county_data["county_pos"][area_name[:2]],
+                            (latitude, longitude),
+                        ),
                         depth,
                         magnitude,
-                        self.pos[area_name[:2]][2],
+                        county_data["county_pos"][area_name[:2]][2],
                     )
                     self.data[area_name[:2]].append(
                         {
                             "source": location[:3],
-                            "time": self.format_time(time),
-                            "observe_intensity": observe_intensity,
+                            "number": earthquake_number,
+                            "observed_time": self.format_time(time),
+                            "observed_intensity": observed_intensity,
                             "pga": pga,
                             "pgv": pgv,
                         }
@@ -286,8 +290,10 @@ class EarthquakeManager(Base):
             f"{use_url}?Authorization={self.auth}&format=JSON&timeFrom={self.get_thirty_day_str()}"
         )
         if data.status_code == 200:
+            self.require_update_database = True
             return data.json()["records"]["Earthquake"]
         else:
+            self.require_update_database = False
             self.logging.error(
                 f"Error: {data.status_code} code when fetching earthquake data"
             )
@@ -295,15 +301,37 @@ class EarthquakeManager(Base):
 
     def sort_earthquake_by_time(self):
         for key in self.data.keys():
-            self.data[key].sort(key=lambda x: x["time"], reverse=True)
+            self.data[key].sort(key=lambda x: x["observed_time"], reverse=True)
 
     def update_func(self):
         self.reset()
-        self.process_data(self.get_info("l"), "l")
-        self.process_data(self.get_info("s"), "s")
+        self.process_data(self.get_info("l"))
+        self.process_data(self.get_info("s"))
         self.sort_earthquake_by_time()
 
     def update_database(self):
-        # Insert data by Flask_mongo
-        pass
-        # self.database.insert_one({"time": self.update_time, "data": self.data})
+        if self.database is not None and self.require_update_database:
+            for town_name, earthquake_data in self.data.items():
+                for earthquake_datum in earthquake_data:
+                    earthquake_number = earthquake_datum["number"]
+                    if (
+                        self.database.query(self.instance_cls)
+                        .filter(self.instance_cls.number == earthquake_number)
+                        .first()
+                        is not None
+                    ):
+                        continue
+
+                    self.database.add(
+                        self.instance_cls(
+                            area=town_name,
+                            source=earthquake_datum["source"],
+                            number=earthquake_number,
+                            observed_intensity=earthquake_datum["observed_intensity"],
+                            pga=earthquake_datum["pga"],
+                            pgv=earthquake_datum["pgv"],
+                            observed_time=earthquake_datum["observed_time"],
+                        )
+                    )
+            self.database.commit()
+            self.require_update_database = False

@@ -47,4 +47,4 @@ class Base:
         return datetime.strftime(self.update_time, "%Y-%m-%d %H:%M:%S")
 
 
-reservoir_data = get_json_file("reservoir.json")
+county_data = get_json_file("county_data.json")

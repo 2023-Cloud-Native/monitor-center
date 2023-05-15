@@ -2,7 +2,7 @@ import time
 import signal
 import threading
 
-from api.models import DBSession, Reservoir, Electricity, Earthquake
+from models import DBSession, Reservoir, Electricity, Earthquake
 from api import ReservoirManager, ElectricityManager, EarthquakeManager
 
 
@@ -20,14 +20,14 @@ def update(data, update_cycle):
 
 if __name__ == "__main__":
     run = True
-    signal.signal(signal.SIGINT, exit_thread)
+    # signal.signal(signal.SIGINT, exit_thread)
 
     # Create database session
     session = DBSession()
     data_manager = {
-        "reservoir": [ReservoirManager(session, Reservoir), 3600],
-        "electricity": [ElectricityManager(session, Electricity), 60],
-        "earthquake": [EarthquakeManager(session, Earthquake), 100],
+        "reservoir": [ReservoirManager(session, Reservoir), 24 * 60 * 60],
+        "electricity": [ElectricityManager(session, Electricity), 600],
+        "earthquake": [EarthquakeManager(session, Earthquake), 300],
     }
 
     thread_manager = [
