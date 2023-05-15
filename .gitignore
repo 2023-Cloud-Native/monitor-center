@@ -49,3 +49,5 @@ l10n/
 .env
 *.ipynb
 *.log
+migrations/
+*.sqlite

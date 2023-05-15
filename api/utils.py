@@ -22,9 +22,10 @@ def get_json_file(file_name):
 
 
 class Base:
-    def __init__(self, time_pattern, database):
+    def __init__(self, time_pattern, database, instance_cls):
         self.time_pattern = time_pattern
         self.database = database
+        self.instance_cls = instance_cls
         self.logging = logging  # Force the binding
         self.update()
 

@@ -1,3 +1,5 @@
+from collections import defaultdict
+import math
 from datetime import datetime, timedelta
 import os
 import requests
@@ -7,18 +9,44 @@ import pandas as pd
 from api.utils import Base, to_float, reservoir_data
 
 
+def geo_distance(geo_1, geo_2):
+    lat1 = math.radians(geo_1[0])
+    lon1 = math.radians(geo_1[1])
+    lat2 = math.radians(geo_2[0])
+    lon2 = math.radians(geo_2[1])
+
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return 6373 * c
+
+
+def compute_pga_pgv(epi_dist, focal_depth, scale, s):
+    r = math.sqrt(epi_dist**2 + focal_depth**2)
+    pga = 1.657 * math.exp(1.533 * scale) * r ** (-1.607) * s
+    return pga, pga / 8.6561
+
+
 class ReservoirManager(Base):
-    def __init__(self, database=None):
+    def __init__(self, database=None, instance_cls=None):
         self.reservoir_overall_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/50C8256D-30C5-4B8D-9B84-2E14D5C6DF71/Data?size=1000&page=1"
         self.reservoir_detail_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/1602CA19-B224-4CC3-AA31-11B1B124530F/Data?size=1000&page=1"
         self.data = {
-            "桃園": dict(),
-            "新竹": dict(),
-            "臺中": dict(),
-            "臺南": dict(),
+            "新竹": defaultdict(float),
+            "臺中": defaultdict(float),
+            "臺南": defaultdict(float),
         }
         self.update_time = None
-        super().__init__(time_pattern="%Y-%m-%dT%H:%M:%S", database=database)
+        super().__init__(
+            time_pattern="%Y-%m-%dT%H:%M:%S",
+            database=database,
+            instance_cls=instance_cls,
+        )
 
     def get_info(self, type_):
         url = (
@@ -47,13 +75,20 @@ class ReservoirManager(Base):
                 continue
 
             town_name = reservoir_data["id_to_town_name"][id_][:2]
-            reservoir_name = reservoir_data["id_to_name"][id_]
-            self.data[town_name][reservoir_name] = {
-                "total_capacity": to_float(datum["EffectiveCapacity"]),
-                "inflow": to_float(datum["InflowVolume"]),
-                "outflow": to_float(datum["OutflowTotal"]),
-                "updated_time": self.format_time(datum["RecordTime"]),
-            }
+            # reservoir_name = reservoir_data["id_to_name"][id_]
+            # self.data[town_name][reservoir_name] = {
+            #     "total_capacity": to_float(datum["EffectiveCapacity"]),
+            #     "inflow": to_float(datum["InflowVolume"]),
+            #     "outflow": to_float(datum["OutflowTotal"]),
+            #     "updated_time": self.format_time(datum["RecordTime"]),
+            # }
+
+            self.data[town_name]["total_capacity"] += to_float(
+                datum["EffectiveCapacity"]
+            )
+            self.data[town_name]["inflow"] += to_float(datum["InflowVolume"])
+            self.data[town_name]["outflow"] += to_float(datum["OutflowTotal"])
+            self.data[town_name]["updated_time"] = datetime.now()
 
     def update_reservoir_details(self):
         detail_data = self.get_info("details")
@@ -69,17 +104,25 @@ class ReservoirManager(Base):
             if reservoir_name not in self.data[town_name]:
                 continue
 
-            observed_time = self.format_time(datum["ObservationTime"])
-            if (
-                "updated_time" not in self.data[town_name][reservoir_name]
-                or self.data[town_name][reservoir_name]["updated_time"] < observed_time
-            ):
-                self.data[town_name][reservoir_name]["updated_time"] = observed_time
-                self.data[town_name][reservoir_name]["current_capacity"] = to_float(
-                    datum["EffectiveWaterStorageCapacity"]
-                )
+            # observed_time = self.format_time(datum["ObservationTime"])
+            # if (
+            #     "updated_time" not in self.data[town_name][reservoir_name]
+            #     or self.data[town_name][reservoir_name]["updated_time"] < observed_time
+            # ):
+            #     self.data[town_name][reservoir_name]["updated_time"] = observed_time
+            #     self.data[town_name][reservoir_name]["current_capacity"] = to_float(
+            #         datum["EffectiveWaterStorageCapacity"]
+            #     )
+            self.data[town_name]["current_capacity"] += to_float(
+                datum["EffectiveWaterStorageCapacity"]
+            )
 
     def update_func(self):
+        self.data = {
+            "新竹": defaultdict(float),
+            "臺中": defaultdict(float),
+            "臺南": defaultdict(float),
+        }
         self.update_reservoir_overall()
         self.update_reservoir_details()
 
@@ -89,11 +132,14 @@ class ReservoirManager(Base):
 
 
 class ElectricityManager(Base):
-    def __init__(self, database=None):
+    def __init__(self, database=None, instance_cls=None):
         self.gen_use_url = "https://www.taipower.com.tw/d006/loadGraph/loadGraph/data/genloadareaperc.csv"
         self.data = None
         self.update_time = None
-        super().__init__(time_pattern="%Y-%m-%d %H:%M", database=database)
+        self.require_update_database = False
+        super().__init__(
+            time_pattern="%Y-%m-%d %H:%M", database=database, instance_cls=instance_cls
+        )
 
     def update_func(self):
         try:
@@ -111,6 +157,7 @@ class ElectricityManager(Base):
             ]
         except Exception as e:
             self.logging.error(f"Error: {str(e)} when fetching electricity data")
+            self.require_update_database = False
             self.data = {
                 "updated_time": "N/A",
                 "north_gen": 0,
@@ -119,12 +166,11 @@ class ElectricityManager(Base):
                 "central_use": 0,
                 "south_gen": 0,
                 "south_use": 0,
-                "east_gen": 0,
-                "east_use": 0,
             }
             return
 
         if self.is_outdated(data.iloc[0, 0]):
+            self.require_update_database = True
             self.data = {
                 "updated_time": self.update_time,
                 "north_gen": data.iloc[0, 1],
@@ -133,8 +179,6 @@ class ElectricityManager(Base):
                 "central_use": data.iloc[0, 4],
                 "south_gen": data.iloc[0, 5],
                 "south_use": data.iloc[0, 6],
-                "east_gen": data.iloc[0, 7],
-                "east_use": data.iloc[0, 8],
             }
 
     def is_outdated(self, new_time):
@@ -146,28 +190,49 @@ class ElectricityManager(Base):
             return False
 
     def update_database(self):
-        # Insert data by Flask_mongo
         if self.database is not None:
-            self.database.insert_one({"time": self.update_time, "data": self.data})
+            last_data = self.instance_cls.query.first()
+            if last_data is not None and last_data.update_time >= self.update_time:
+                return
+
+            instance = self.instance_cls(
+                north_generate=self.data["north_gen"],
+                north_usage=self.data["north_use"],
+                central_generate=self.data["central_gen"],
+                central_usage=self.data["central_use"],
+                south_generate=self.data["south_gen"],
+                south_usage=self.data["south_use"],
+                update_time=self.data["updated_time"],
+            )
+            self.database.session.add(instance)
+            self.database.session.commit()
+            self.require_update_database = False
 
 
 class EarthquakeManager(Base):
-    def __init__(self, database=None):
+    def __init__(self, database=None, instance_cls=None):
         self.large_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0015-001"
         self.small_url = "https://opendata.cwb.gov.tw/api/v1/rest/datastore/E-A0016-001"
         self.auth = os.environ.get("CWB_AUTH")
+        self.pos = {
+            "新竹": (24.773, 121.01, 1.758),
+            "臺中": (24.2115, 120.618, 1.063),
+            "臺南": (23.1135, 120.272, 1.968),
+        }
         self.data = {
-            "桃園": [],
             "新竹": [],
             "臺中": [],
             "臺南": [],
         }
         self.update_time = datetime.now()
-        super().__init__(time_pattern="%Y-%m-%d %H:%M:%S", database=database)
+        super().__init__(
+            time_pattern="%Y-%m-%d %H:%M:%S",
+            database=database,
+            instance_cls=instance_cls,
+        )
 
     def reset(self):
         self.data = {
-            "桃園": [],
             "新竹": [],
             "臺中": [],
             "臺南": [],
@@ -183,13 +248,12 @@ class EarthquakeManager(Base):
         for earthquake in data:
             earthquake_info = earthquake["EarthquakeInfo"]
             time = earthquake_info["OriginTime"]
-            # TODO: pga and pgv can be calculated here, left for future work
-            """
             depth = earthquake_info["FocalDepth"]
-            
             magnitude = earthquake_info["EarthquakeMagnitude"]["MagnitudeValue"]
-            """
-            center = earthquake_info["Epicenter"]["Location"]
+            center = earthquake_info["Epicenter"]
+            latitude = center["EpicenterLatitude"]
+            longitude = center["EpicenterLongitude"]
+            location = center["Location"]
             shaking_areas = earthquake["Intensity"]["ShakingArea"]
             for area in shaking_areas:
                 area_names = area["CountyName"].split("、")
@@ -200,13 +264,19 @@ class EarthquakeManager(Base):
                         continue
 
                     observe_intensity = area["AreaIntensity"]
-
+                    pga, pgv = compute_pga_pgv(
+                        geo_distance(self.pos[area_name[:2]], (latitude, longitude)),
+                        depth,
+                        magnitude,
+                        self.pos[area_name[:2]][2],
+                    )
                     self.data[area_name[:2]].append(
                         {
-                            "source": center[:3],
+                            "source": location[:3],
                             "time": self.format_time(time),
-                            "type": type,
                             "observe_intensity": observe_intensity,
+                            "pga": pga,
+                            "pgv": pgv,
                         }
                     )
 
