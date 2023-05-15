@@ -195,7 +195,10 @@ class ElectricityManager(Base):
     def update_database(self):
         if self.database is not None and self.require_update_database:
             latest_data = self.database.query(self.instance_cls).first()
-            if latest_data is not None and latest_data.updated_time == self.updated_time:
+            if (
+                latest_data is not None
+                and latest_data.updated_time == self.updated_time
+            ):
                 return
 
             instance = self.instance_cls(

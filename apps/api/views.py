@@ -6,11 +6,16 @@ from api.models import Reservoir, Electricity, Earthquake
 
 
 def process_reservoir():
-    areas = [u"新竹", u"臺中", u"臺南"]
+    areas = ["新竹", "臺中", "臺南"]
     data = {}
-    
+
     for area in areas:
-        reservoir_data = db.query(Reservoir).filter_by(area=area).order_by(desc(Reservoir.updated_time)).first()
+        reservoir_data = (
+            db.query(Reservoir)
+            .filter_by(area=area)
+            .order_by(desc(Reservoir.updated_time))
+            .first()
+        )
         if reservoir_data is None:
             data[area] = {}
         else:
@@ -21,14 +26,18 @@ def process_reservoir():
                 "total_capacity": reservoir_data.total_capacity,
                 "current_capacity": reservoir_data.current_capacity,
                 "percentage": reservoir_data.percentage,
-                "updated_time": reservoir_data.updated_time.strftime(r"%Y-%m-%d %H:%M:%S"),
+                "updated_time": reservoir_data.updated_time.strftime(
+                    r"%Y-%m-%d %H:%M:%S"
+                ),
             }
-        
+
     return data
 
 
 def process_electricity():
-    electricity_data = db.query(Electricity).order_by(desc(Electricity.updated_time)).first()
+    electricity_data = (
+        db.query(Electricity).order_by(desc(Electricity.updated_time)).first()
+    )
     if electricity_data is None:
         return {}
     else:
@@ -39,17 +48,15 @@ def process_electricity():
             "central_usage": electricity_data.central_usage,
             "south_generate": electricity_data.south_generate,
             "south_usage": electricity_data.south_usage,
-            "updated_time": electricity_data.updated_time.strftime(r"%Y-%m-%d %H:%M:%S"),
+            "updated_time": electricity_data.updated_time.strftime(
+                r"%Y-%m-%d %H:%M:%S"
+            ),
         }
 
 
 def process_earthquake():
     earthquakes = db.query(Earthquake).order_by(desc(Earthquake.observed_time)).all()
-    data = {
-        u"新竹": [],
-        u"臺中": [],
-        u"臺南": []
-    }
+    data = {"新竹": [], "臺中": [], "臺南": []}
     current_time = datetime.datetime.now()
     for earthquake in earthquakes:
         data_time = earthquake.observed_time
