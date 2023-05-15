@@ -3,7 +3,6 @@ import math
 from datetime import datetime, timedelta
 import os
 import requests
-from sqlalchemy import desc
 
 import pandas as pd
 
@@ -257,35 +256,26 @@ class EarthquakeManager(Base):
             latitude = center["EpicenterLatitude"]
             longitude = center["EpicenterLongitude"]
             location = center["Location"]
-            shaking_areas = earthquake["Intensity"]["ShakingArea"]
-            for area in shaking_areas:
-                area_names = area["CountyName"].split("、")
-                if len(area["EqStation"]) == 0:
-                    continue
-                for area_name in area_names:
-                    if area_name[:2] not in self.data.keys():
-                        continue
 
-                    observed_intensity = area["AreaIntensity"]
-                    pga, pgv = compute_pga_pgv(
-                        geo_distance(
-                            county_data["county_pos"][area_name[:2]],
-                            (latitude, longitude),
-                        ),
-                        depth,
-                        magnitude,
-                        county_data["county_pos"][area_name[:2]][2],
-                    )
-                    self.data[area_name[:2]].append(
-                        {
-                            "source": location[:3],
-                            "number": earthquake_number,
-                            "observed_time": self.format_time(time),
-                            "observed_intensity": observed_intensity,
-                            "pga": pga,
-                            "pgv": pgv,
-                        }
-                    )
+            for area in self.data:
+                pga, pgv = compute_pga_pgv(
+                    geo_distance(
+                        county_data["county_pos"][area],
+                        (latitude, longitude),
+                    ),
+                    depth,
+                    magnitude,
+                    county_data["county_pos"][area][2],
+                )
+                self.data[area].append(
+                    {
+                        "source": location[:3],
+                        "number": earthquake_number,
+                        "observed_time": self.format_time(time),
+                        "pga": pga,
+                        "pgv": pgv,
+                    }
+                )
 
     def get_info(self, type_="s"):
         use_url = self.large_url if type_ == "l" else self.small_url
@@ -320,6 +310,7 @@ class EarthquakeManager(Base):
                     if (
                         self.database.query(self.instance_cls)
                         .filter(self.instance_cls.number == earthquake_number)
+                        .filter(self.instance_cls.area == town_name)
                         .first()
                         is not None
                     ):
@@ -330,7 +321,6 @@ class EarthquakeManager(Base):
                             area=town_name,
                             source=earthquake_datum["source"],
                             number=earthquake_number,
-                            observed_intensity=earthquake_datum["observed_intensity"],
                             pga=earthquake_datum["pga"],
                             pgv=earthquake_datum["pgv"],
                             observed_time=earthquake_datum["observed_time"],

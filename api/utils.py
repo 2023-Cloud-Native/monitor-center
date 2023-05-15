@@ -44,7 +44,7 @@ class Base:
 
     @property
     def last_updated_time(self):
-        return datetime.strftime(self.update_time, "%Y-%m-%d %H:%M:%S")
+        return datetime.strftime(self.updated_time, "%Y-%m-%d %H:%M:%S")
 
 
 county_data = get_json_file("county_data.json")

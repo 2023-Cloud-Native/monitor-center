@@ -20,7 +20,6 @@ def process_reservoir():
             data[area] = {}
         else:
             data[area] = {
-                "area": area,
                 "inflow": reservoir_data.inflow,
                 "outflow": reservoir_data.outflow,
                 "total_capacity": reservoir_data.total_capacity,
@@ -65,7 +64,7 @@ def process_earthquake():
         data[earthquake.area].append(
             {
                 "source": earthquake.source,
-                "observed_intenstiy": earthquake.observed_intensity,
+                "earthquake_no": earthquake.number,
                 "pga": earthquake.pga,
                 "pgv": earthquake.pgv,
                 "observed_time": data_time.strftime(r"%Y-%m-%d %H:%M:%S"),
