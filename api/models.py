@@ -18,7 +18,7 @@ class Reservoir(Base):
     total_capacity = Column(Float, nullable=False)
     current_capacity = Column(Float, nullable=False)
     percentage = Column(Float, nullable=False)
-    updated_time = Column(DateTime, index=False, nullable=False)
+    updated_time = Column(DateTime, index=True, nullable=False)
 
     def __init__(
         self,
@@ -48,7 +48,7 @@ class Electricity(Base):
     central_usage = Column(Float, nullable=False)
     south_generate = Column(Float, nullable=False)
     south_usage = Column(Float, nullable=False)
-    updated_time = Column(DateTime, index=False, nullable=False)
+    updated_time = Column(DateTime, index=True, nullable=False)
 
     def __init__(
         self,
