@@ -37,9 +37,9 @@ class ReservoirManager(Base):
         self.reservoir_overall_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/50C8256D-30C5-4B8D-9B84-2E14D5C6DF71/Data?size=1000&page=1"
         self.reservoir_detail_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/1602CA19-B224-4CC3-AA31-11B1B124530F/Data?size=1000&page=1"
         self.data = {
-            "新竹": defaultdict(float),
-            "臺中": defaultdict(float),
-            "臺南": defaultdict(float),
+            "新竹": {},
+            "臺中": {},
+            "臺南": {},
         }
         self.require_update_database = False
         self.updated_time = None
@@ -77,6 +77,15 @@ class ReservoirManager(Base):
                 continue
 
             town_name = county_data["id_to_county"][id_]
+            if "current_capacity" not in self.data[town_name]:
+                self.data[town_name]["current_capacity"] = 0.0
+
+            if "inflow" not in self.data[town_name]:
+                self.data[town_name]["inflow"] = 0.0
+
+            if "outflow" not in self.data[town_name]:
+                self.data[town_name]["outflow"] = 0.0
+
             self.data[town_name]["current_capacity"] += to_float(
                 datum["EffectiveCapacity"]
             )
@@ -97,9 +106,15 @@ class ReservoirManager(Base):
                 continue
 
             town_name = county_data["id_to_county"][id_]
+
+            if "total_capacity" not in self.data[town_name]:
+                self.data[town_name]["total_capacity"] = 0.0
+
             self.data[town_name]["total_capacity"] += to_float(
                 datum["EffectiveWaterStorageCapacity"]
             )
+            self.data[town_name]["updated_time"] = datetime.now()
+
         for key in self.data.keys():
             self.data[key]["percentage"] = (
                 self.data[key]["current_capacity"] / self.data[key]["total_capacity"]
