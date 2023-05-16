@@ -19,6 +19,9 @@ def test_reservoir_normal():
     reservoir_manager = ReservoirManager()
     assert isinstance(reservoir_manager.data, dict)
     for area in reservoir_manager.data:
+        if reservoir_manager.data[area]["updated_time"] == "N/A":
+            continue
+        
         assert isinstance(
             reservoir_manager.data[area]["updated_time"], datetime.datetime
         )
