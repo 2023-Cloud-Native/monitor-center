@@ -12,7 +12,7 @@ Base = declarative_base()
 class Reservoir(Base):
     __tablename__ = "reservoir"
     _id = Column(Integer, primary_key=True)
-    area = Column(String, index=True, nullable=False)
+    area = Column(String(30), index=True, nullable=False)
     inflow = Column(Float, nullable=False)
     outflow = Column(Float, nullable=False)
     total_capacity = Column(Float, nullable=False)
@@ -72,8 +72,8 @@ class Electricity(Base):
 class Earthquake(Base):
     __tablename__ = "earthquake"
     _id = Column(Integer, primary_key=True)
-    area = Column(String, index=True, nullable=False)
-    source = Column(String, nullable=False)
+    area = Column(String(20), index=True, nullable=False)
+    source = Column(String(20), nullable=False)
     number = Column(Integer, index=True, nullable=False)
     pga = Column(Float, nullable=False)
     pgv = Column(Float, nullable=False)
@@ -88,6 +88,9 @@ class Earthquake(Base):
         self.observed_time = observed_time
 
 
-engine = create_engine(os.getenv("DATABASE_URL"), echo=True)
+engine = create_engine(
+    f"mysql+pymysql://{os.getenv('MYSQL_USER_NAME')}:{os.getenv('MYSQL_USER_PASSWORD')}@db:{os.getenv('MYSQL_PORT')}/{os.getenv('MYSQL_DATABASE')}",
+    echo=True,
+)
 Base.metadata.create_all(engine)
 DBSession = sessionmaker(bind=engine)
