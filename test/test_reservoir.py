@@ -46,6 +46,10 @@ def test_reservoir_normal():
             isinstance(reservoir_manager.data[area]["current_capacity"], float)
             and reservoir_manager.data[area]["current_capacity"] >= 0
         )
+        
+        if reservoir_manager.data[area]["total_capacity"] == 0:
+            continue
+        
         assert (
             abs(
                 reservoir_manager.data[area]["percentage"]
