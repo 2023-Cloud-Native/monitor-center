@@ -13,7 +13,14 @@ class Reservoir(db.Model):
     updated_time = db.Column(db.DateTime, index=False, nullable=False)
 
     def __init__(
-        self, area, in_flow, out_flow, total_capacity, current_capacity, percentage, updated_time
+        self,
+        area,
+        in_flow,
+        out_flow,
+        total_capacity,
+        current_capacity,
+        percentage,
+        updated_time,
     ):
         self.area = area
         self.in_flow = in_flow
@@ -65,7 +72,9 @@ class Earthquake(db.Model):
     pgv = db.Column(db.Float, nullable=False)
     observed_time = db.Column(db.DateTime, index=True, nullable=False)
 
-    def __init__(self, area, source, number, observed_intensity, pga, pgv, observed_time):
+    def __init__(
+        self, area, source, number, observed_intensity, pga, pgv, observed_time
+    ):
         self.area = area
         self.source = source
         self.number = number
