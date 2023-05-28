@@ -1,5 +1,9 @@
+from pathlib import Path
 import time
 import threading
+import sys
+
+sys.path.append(Path(__file__).resolve().parent.parent.__str__())
 
 from api.models import DBSession, Reservoir, Electricity, Earthquake
 from api.manager import ReservoirManager, ElectricityManager, EarthquakeManager

@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import dotenv
 
-dotenv.load_dotenv()
+dotenv.load_dotenv(".env")
 
 Base = declarative_base()
 
