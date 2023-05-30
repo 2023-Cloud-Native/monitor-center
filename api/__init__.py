@@ -1,1 +1,1 @@
-from .api import ReservoirManager, ElectricityManager, EarthquakeManager
+from .manager import ReservoirManager, ElectricityManager, EarthquakeManager

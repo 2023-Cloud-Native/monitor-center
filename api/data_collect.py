@@ -1,14 +1,12 @@
+from pathlib import Path
 import time
-import signal
 import threading
+import sys
 
-from models import DBSession, Reservoir, Electricity, Earthquake
-from api import ReservoirManager, ElectricityManager, EarthquakeManager
+sys.path.append(Path(__file__).resolve().parent.parent.__str__())
 
-
-def exit_thread(signum, frame):
-    global run
-    run = False
+from api.models import DBSession, Reservoir, Electricity, Earthquake
+from api.manager import ReservoirManager, ElectricityManager, EarthquakeManager
 
 
 def update(data, update_cycle):
@@ -20,7 +18,6 @@ def update(data, update_cycle):
 
 if __name__ == "__main__":
     run = True
-    # signal.signal(signal.SIGINT, exit_thread)
 
     # Create database session
     session = DBSession()

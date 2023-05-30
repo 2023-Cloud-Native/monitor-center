@@ -1,8 +1,10 @@
 services:
   web:
+    image: flask-web-app:1.0
     build: .
     container_name: flask_app
-    command: gunicorn --bind 0.0.0.0:${APP_PORT} wsgi:app
+    restart: on-failure
+    command: bash server_startup.sh
     ports:
       - ${APP_PORT}
     environment:
@@ -11,11 +13,39 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - frontend
       - backend
+    healthcheck:
+      test: curl --fail http://0.0.0.0:${APP_PORT} || exit 1
+      interval: 300s 
+      timeout: 10s
+      retries: 5
+  db:
+    image: mysql:8.0.21
+    container_name: mysql
+    restart: unless-stopped
+    ports:
+      - ${MYSQL_PORT}
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER_NAME: ${MYSQL_USER_NAME}
+      MYSQL_USER_PASSWORD: ${MYSQL_USER_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./mysql:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend
+    healthcheck:
+      test: mysqladmin ping -h localhost -u ${MYSQL_USER_NAME} --password=${MYSQL_USER_PASSWORD} || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
   webserver:
+    image: nginx-web-server:1.0
     build:
       context: nginx
       dockerfile: Dockerfile
@@ -26,7 +56,10 @@ services:
     volumes:
       - nginxdata:/var/log/nginx
     depends_on:
-      - web
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
     networks:
       - frontend
 

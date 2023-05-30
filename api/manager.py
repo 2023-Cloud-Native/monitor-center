@@ -3,7 +3,6 @@ import math
 from datetime import datetime, timedelta
 import os
 import requests
-from sqlalchemy import desc
 
 import pandas as pd
 
@@ -38,9 +37,9 @@ class ReservoirManager(Base):
         self.reservoir_overall_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/50C8256D-30C5-4B8D-9B84-2E14D5C6DF71/Data?size=1000&page=1"
         self.reservoir_detail_url = "https://data.wra.gov.tw/OpenAPI/api/OpenData/1602CA19-B224-4CC3-AA31-11B1B124530F/Data?size=1000&page=1"
         self.data = {
-            "新竹": defaultdict(float),
-            "臺中": defaultdict(float),
-            "臺南": defaultdict(float),
+            "新竹": {},
+            "臺中": {},
+            "臺南": {},
         }
         self.require_update_database = False
         self.updated_time = None
@@ -78,6 +77,15 @@ class ReservoirManager(Base):
                 continue
 
             town_name = county_data["id_to_county"][id_]
+            if "current_capacity" not in self.data[town_name]:
+                self.data[town_name]["current_capacity"] = 0.0
+
+            if "inflow" not in self.data[town_name]:
+                self.data[town_name]["inflow"] = 0.0
+
+            if "outflow" not in self.data[town_name]:
+                self.data[town_name]["outflow"] = 0.0
+
             self.data[town_name]["current_capacity"] += to_float(
                 datum["EffectiveCapacity"]
             )
@@ -98,9 +106,15 @@ class ReservoirManager(Base):
                 continue
 
             town_name = county_data["id_to_county"][id_]
+
+            if "total_capacity" not in self.data[town_name]:
+                self.data[town_name]["total_capacity"] = 0.0
+
             self.data[town_name]["total_capacity"] += to_float(
                 datum["EffectiveWaterStorageCapacity"]
             )
+            self.data[town_name]["updated_time"] = datetime.now()
+
         for key in self.data.keys():
             self.data[key]["percentage"] = (
                 self.data[key]["current_capacity"] / self.data[key]["total_capacity"]
@@ -195,7 +209,10 @@ class ElectricityManager(Base):
     def update_database(self):
         if self.database is not None and self.require_update_database:
             latest_data = self.database.query(self.instance_cls).first()
-            if latest_data is not None and latest_data.updated_time == self.updated_time:
+            if (
+                latest_data is not None
+                and latest_data.updated_time == self.updated_time
+            ):
                 return
 
             instance = self.instance_cls(
@@ -254,35 +271,26 @@ class EarthquakeManager(Base):
             latitude = center["EpicenterLatitude"]
             longitude = center["EpicenterLongitude"]
             location = center["Location"]
-            shaking_areas = earthquake["Intensity"]["ShakingArea"]
-            for area in shaking_areas:
-                area_names = area["CountyName"].split("、")
-                if len(area["EqStation"]) == 0:
-                    continue
-                for area_name in area_names:
-                    if area_name[:2] not in self.data.keys():
-                        continue
 
-                    observed_intensity = area["AreaIntensity"]
-                    pga, pgv = compute_pga_pgv(
-                        geo_distance(
-                            county_data["county_pos"][area_name[:2]],
-                            (latitude, longitude),
-                        ),
-                        depth,
-                        magnitude,
-                        county_data["county_pos"][area_name[:2]][2],
-                    )
-                    self.data[area_name[:2]].append(
-                        {
-                            "source": location[:3],
-                            "number": earthquake_number,
-                            "observed_time": self.format_time(time),
-                            "observed_intensity": observed_intensity,
-                            "pga": pga,
-                            "pgv": pgv,
-                        }
-                    )
+            for area in self.data:
+                pga, pgv = compute_pga_pgv(
+                    geo_distance(
+                        county_data["county_pos"][area],
+                        (latitude, longitude),
+                    ),
+                    depth,
+                    magnitude,
+                    county_data["county_pos"][area][2],
+                )
+                self.data[area].append(
+                    {
+                        "source": location[:3],
+                        "number": earthquake_number,
+                        "observed_time": self.format_time(time),
+                        "pga": pga,
+                        "pgv": pgv,
+                    }
+                )
 
     def get_info(self, type_="s"):
         use_url = self.large_url if type_ == "l" else self.small_url
@@ -317,6 +325,7 @@ class EarthquakeManager(Base):
                     if (
                         self.database.query(self.instance_cls)
                         .filter(self.instance_cls.number == earthquake_number)
+                        .filter(self.instance_cls.area == town_name)
                         .first()
                         is not None
                     ):
@@ -327,7 +336,6 @@ class EarthquakeManager(Base):
                             area=town_name,
                             source=earthquake_datum["source"],
                             number=earthquake_number,
-                            observed_intensity=earthquake_datum["observed_intensity"],
                             pga=earthquake_datum["pga"],
                             pgv=earthquake_datum["pgv"],
                             observed_time=earthquake_datum["observed_time"],
