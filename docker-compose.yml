@@ -28,7 +28,7 @@ services:
     container_name: mysql
     restart: unless-stopped
     ports:
-      - ${MYSQL_PORT}
+      - ${MYSQL_OUT_PORT}:${MYSQL_PORT}
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
