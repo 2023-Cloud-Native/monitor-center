@@ -11,7 +11,7 @@ services:
       - APP_ENV=monitor-app
       - APP_PORT=${APP_PORT}
     volumes:
-      - .:/app
+      - .:/home/nonroot
     depends_on:
       db:
         condition: service_healthy
@@ -55,6 +55,7 @@ services:
       - 80:80
     volumes:
       - nginxdata:/var/log/nginx
+      - ./logs:/logs
     depends_on:
       db:
         condition: service_healthy
