@@ -1,22 +1,43 @@
 services:
+  fetcher:
+    image: flask-web-app:1.0
+    build: .
+    container_name: data_fetcher
+    restart: on-failure
+    command: python api/data_collect.py
+    volumes:
+      - .:/home/nonroot
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    healthcheck:
+      test: bash api/healthcheck.sh
+      interval: 300s
+      timeout: 10s
+      retries: 5
   web:
     image: flask-web-app:1.0
     build: .
     container_name: flask_app
     restart: on-failure
-    command: bash server_startup.sh
+    command: gunicorn -c apps/gunicorn_config.py apps.wsgi:app
     ports:
-      - ${APP_PORT}
+      - ${APP_OUT}:${APP_PORT}
     environment:
       - APP_ENV=monitor-app
       - APP_PORT=${APP_PORT}
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     volumes:
       - .:/home/nonroot
     depends_on:
-      db:
+      fetcher:
         condition: service_healthy
     networks:
-      - frontend
       - backend
     healthcheck:
       test: curl --fail http://0.0.0.0:${APP_PORT} || exit 1
@@ -37,6 +58,8 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
       - ./mysql:/docker-entrypoint-initdb.d:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - backend
     healthcheck:
@@ -44,34 +67,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-  webserver:
-    image: nginx-web-server:1.0
-    build:
-      context: nginx
-      dockerfile: Dockerfile
-    container_name: webserver
-    restart: unless-stopped
-    ports:
-      - 80:80
-    volumes:
-      - nginxdata:/var/log/nginx
-      - ./logs:/logs
-    depends_on:
-      db:
-        condition: service_healthy
-      web:
-        condition: service_healthy
-    networks:
-      - frontend
 
 networks:
-  frontend:
-    driver: bridge
   backend:
     driver: bridge
 
 volumes:
   dbdata:
-    driver: local
-  nginxdata:
     driver: local
