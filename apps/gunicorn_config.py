@@ -5,8 +5,11 @@ dotenv.load_dotenv(".env")
 
 # Basic setup
 bind = f"0.0.0.0:{os.environ.get('APP_PORT')}"
-worker_connections = 1000
+workers = 4
 timeout = 30
+worker_tmp_dir = "/dev/shm"
+worker_class = "gthread"
+threads = 4
 
 # Log information
 os.makedirs("logs/gunicorn", exist_ok=True)
