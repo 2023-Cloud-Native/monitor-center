@@ -5,7 +5,8 @@ import sys
 
 sys.path.append(Path(__file__).resolve().parent.parent.__str__())
 
-from api.models import DBSession, Reservoir, Electricity, Earthquake
+from api.database import init_db, session_maker_modify
+from api.models import Reservoir, Electricity, Earthquake
 from api.manager import ReservoirManager, ElectricityManager, EarthquakeManager
 
 
@@ -20,11 +21,11 @@ if __name__ == "__main__":
     run = True
 
     # Create database session
-    session = DBSession()
+    init_db()
     data_manager = {
-        "reservoir": [ReservoirManager(session, Reservoir), 24 * 60 * 60],
-        "electricity": [ElectricityManager(session, Electricity), 600],
-        "earthquake": [EarthquakeManager(session, Earthquake), 300],
+        "reservoir": [ReservoirManager(session_maker_modify, Reservoir), 24 * 60 * 60],
+        "electricity": [ElectricityManager(session_maker_modify, Electricity), 600],
+        "earthquake": [EarthquakeManager(session_maker_modify, Earthquake), 300],
     }
 
     thread_manager = [

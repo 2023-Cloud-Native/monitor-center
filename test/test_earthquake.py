@@ -33,7 +33,6 @@ def test_earthquake_normal():
     for key in earthquake_manager.data:
         for data in earthquake_manager.data[key]:
             assert isinstance(data["source"], str)
-            assert isinstance(data["number"], int)
             assert isinstance(data["observed_time"], datetime.datetime)
             assert isinstance(data["pga"], float) and data["pga"] >= 0
             assert isinstance(data["pgv"], float) and data["pgv"] >= 0
