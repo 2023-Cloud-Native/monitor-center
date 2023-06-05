@@ -1,12 +1,9 @@
-import os
-from sqlalchemy import Column, Integer, String, Float, DateTime, create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-import dotenv
+from pathlib import Path
+import sys
+from sqlalchemy import Column, Integer, String, Float, DateTime
 
-dotenv.load_dotenv(".env")
-
-Base = declarative_base()
+sys.path.append(Path(__file__).resolve().parent.parent.__str__())
+from api.database import Base
 
 
 class Reservoir(Base):
@@ -86,11 +83,3 @@ class Earthquake(Base):
         self.pga = pga
         self.pgv = pgv
         self.observed_time = observed_time
-
-
-engine = create_engine(
-    f"mysql+pymysql://{os.getenv('MYSQL_USER_NAME')}:{os.getenv('MYSQL_USER_PASSWORD')}@db:{os.getenv('MYSQL_PORT')}/{os.getenv('MYSQL_DATABASE')}",
-    echo=True,
-)
-Base.metadata.create_all(engine)
-DBSession = sessionmaker(bind=engine)

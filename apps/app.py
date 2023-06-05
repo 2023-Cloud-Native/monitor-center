@@ -1,9 +1,7 @@
 from flask import Flask
 from prometheus_flask_exporter import PrometheusMetrics
-from api.models import DBSession
+from api.database import DBSession
 from apps.config import config
-
-db = DBSession()
 
 
 def create_app(config_key="local"):
@@ -16,5 +14,9 @@ def create_app(config_key="local"):
     from apps.api import views as api_view
 
     app.register_blueprint(api_view.api)
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        DBSession.remove()
 
     return app
