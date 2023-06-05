@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import wraps
 import math
 from datetime import datetime, timedelta
 import os
@@ -132,20 +133,20 @@ class ReservoirManager(Base):
 
     def update_database(self):
         if self.database is not None and self.require_update_database:
-            for town_name, town_data in self.data.items():
-                self.database.add(
-                    self.instance_cls(
-                        area=town_name,
-                        current_capacity=town_data["current_capacity"],
-                        total_capacity=town_data["total_capacity"],
-                        percentage=town_data["percentage"],
-                        inflow=town_data["inflow"],
-                        outflow=town_data["outflow"],
-                        updated_time=town_data["updated_time"],
+            with self.database() as db_session:
+                for town_name, town_data in self.data.items():
+                    db_session.add(
+                        self.instance_cls(
+                            area=town_name,
+                            current_capacity=town_data["current_capacity"],
+                            total_capacity=town_data["total_capacity"],
+                            percentage=town_data["percentage"],
+                            inflow=town_data["inflow"],
+                            outflow=town_data["outflow"],
+                            updated_time=town_data["updated_time"],
+                        )
                     )
-                )
-            self.database.commit()
-            self.require_update_database = False
+                self.require_update_database = False
 
 
 class ElectricityManager(Base):
@@ -159,34 +160,44 @@ class ElectricityManager(Base):
         )
 
     def update_func(self):
-        try:
-            data = pd.read_csv(self.gen_use_url, header=None)
-            data.columns = [
-                "time",
-                "north_gen",
-                "north_use",
-                "central_gen",
-                "central_use",
-                "south_gen",
-                "south_use",
-                "east_gen",
-                "east_use",
-            ]
-        except Exception as e:
-            self.logging.error(f"Error: {str(e)} when fetching electricity data")
-            self.require_update_database = False
-            self.data = {
-                "updated_time": "N/A",
-                "north_gen": 0,
-                "north_use": 0,
-                "central_gen": 0,
-                "central_use": 0,
-                "south_gen": 0,
-                "south_use": 0,
-            }
-            return
+        RETRIES_LIMIT = 3
+        success = False
+        last_error = None
 
-        if self.is_outdated(data.iloc[0, 0]):
+        while RETRIES_LIMIT > 0:
+            try:
+                data = pd.read_csv(self.gen_use_url, header=None)
+                data.columns = [
+                    "time",
+                    "north_gen",
+                    "north_use",
+                    "central_gen",
+                    "central_use",
+                    "south_gen",
+                    "south_use",
+                    "east_gen",
+                    "east_use",
+                ]
+                success = True
+                break
+            except Exception as e:
+                last_error = str(e)
+                self.require_update_database = False
+                self.data = {
+                    "updated_time": "N/A",
+                    "north_gen": 0,
+                    "north_use": 0,
+                    "central_gen": 0,
+                    "central_use": 0,
+                    "south_gen": 0,
+                    "south_use": 0,
+                }
+            RETRIES_LIMIT -= 1
+
+        if not success:
+            self.logging.error(f"Error: {last_error} when fetching electricity data")
+
+        if success and self.is_outdated(data.iloc[0, 0]):
             self.require_update_database = True
             self.data = {
                 "updated_time": self.updated_time,
@@ -208,25 +219,25 @@ class ElectricityManager(Base):
 
     def update_database(self):
         if self.database is not None and self.require_update_database:
-            latest_data = self.database.query(self.instance_cls).first()
-            if (
-                latest_data is not None
-                and latest_data.updated_time == self.updated_time
-            ):
-                return
+            with self.database() as db_session:
+                latest_data = db_session.query(self.instance_cls).first()
+                if (
+                    latest_data is not None
+                    and latest_data.updated_time == self.updated_time
+                ):
+                    return
 
-            instance = self.instance_cls(
-                north_generate=self.data["north_gen"],
-                north_usage=self.data["north_use"],
-                central_generate=self.data["central_gen"],
-                central_usage=self.data["central_use"],
-                south_generate=self.data["south_gen"],
-                south_usage=self.data["south_use"],
-                updated_time=self.data["updated_time"],
-            )
-            self.database.add(instance)
-            self.database.commit()
-            self.require_update_database = False
+                instance = self.instance_cls(
+                    north_generate=self.data["north_gen"],
+                    north_usage=self.data["north_use"],
+                    central_generate=self.data["central_gen"],
+                    central_usage=self.data["central_use"],
+                    south_generate=self.data["south_gen"],
+                    south_usage=self.data["south_use"],
+                    updated_time=self.data["updated_time"],
+                )
+                db_session.add(instance)
+                self.require_update_database = False
 
 
 class EarthquakeManager(Base):
@@ -319,27 +330,26 @@ class EarthquakeManager(Base):
 
     def update_database(self):
         if self.database is not None and self.require_update_database:
-            for town_name, earthquake_data in self.data.items():
-                for earthquake_datum in earthquake_data:
-                    earthquake_number = earthquake_datum["number"]
-                    if (
-                        self.database.query(self.instance_cls)
-                        .filter(self.instance_cls.number == earthquake_number)
-                        .filter(self.instance_cls.area == town_name)
-                        .first()
-                        is not None
-                    ):
-                        continue
+            with self.database() as db_session:
+                for town_name, earthquake_data in self.data.items():
+                    for earthquake_datum in earthquake_data:
+                        earthquake_observed_time = earthquake_datum["observed_time"]
+                        if (
+                            db_session.query(self.instance_cls)
+                            .filter(self.instance_cls.observed_time == earthquake_observed_time)
+                            .filter(self.instance_cls.area == town_name)
+                            .first()
+                            is not None
+                        ):
+                            continue
 
-                    self.database.add(
-                        self.instance_cls(
-                            area=town_name,
-                            source=earthquake_datum["source"],
-                            number=earthquake_number,
-                            pga=earthquake_datum["pga"],
-                            pgv=earthquake_datum["pgv"],
-                            observed_time=earthquake_datum["observed_time"],
+                        db_session.add(
+                            self.instance_cls(
+                                area=town_name,
+                                source=earthquake_datum["source"],
+                                pga=earthquake_datum["pga"],
+                                pgv=earthquake_datum["pgv"],
+                                observed_time=earthquake_datum["observed_time"],
+                            )
                         )
-                    )
-            self.database.commit()
-            self.require_update_database = False
+                self.require_update_database = False

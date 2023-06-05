@@ -9,7 +9,7 @@ RUN apt update && apt install -y curl procps && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/nonroot
-ADD . /home/nonroot
+ADD requirements.txt /home/nonroot
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip cache purge && rm requirements.txt
 
