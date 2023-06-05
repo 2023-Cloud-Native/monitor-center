@@ -162,6 +162,7 @@ class ElectricityManager(Base):
     def update_func(self):
         RETRIES_LIMIT = 3
         success = False
+        last_error = None
 
         while RETRIES_LIMIT > 0:
             try:
@@ -180,6 +181,7 @@ class ElectricityManager(Base):
                 success = True
                 break
             except Exception as e:
+                last_error = str(e)
                 self.require_update_database = False
                 self.data = {
                     "updated_time": "N/A",
@@ -190,9 +192,10 @@ class ElectricityManager(Base):
                     "south_gen": 0,
                     "south_use": 0,
                 }
+            RETRIES_LIMIT -= 1
 
         if not success:
-            self.logging.error(f"Error: {str(e)} when fetching electricity data")
+            self.logging.error(f"Error: {last_error} when fetching electricity data")
 
         if success and self.is_outdated(data.iloc[0, 0]):
             self.require_update_database = True
