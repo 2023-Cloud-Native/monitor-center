@@ -15,6 +15,7 @@ class LocalConfig(BaseConfig):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = True
     JSON_AS_ASCII = False
+    JSONIFY_PRETTYPRINT_REGULAR = True
 
 
 class TestingConfig(BaseConfig):
