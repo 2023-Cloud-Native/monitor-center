@@ -155,7 +155,6 @@ def get_earthquake_with_time_range(start_time, end_time):
             data[earthquake.area].append(
                 {
                     "source": earthquake.source,
-                    "earthquake_no": earthquake.number,
                     "pga": earthquake.pga,
                     "pgv": earthquake.pgv,
                     "observed_time": earthquake.observed_time.strftime(
