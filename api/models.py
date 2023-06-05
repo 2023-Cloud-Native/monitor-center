@@ -71,15 +71,13 @@ class Earthquake(Base):
     _id = Column(Integer, primary_key=True)
     area = Column(String(20), index=True, nullable=False)
     source = Column(String(20), nullable=False)
-    number = Column(Integer, index=True, nullable=False)
     pga = Column(Float, nullable=False)
     pgv = Column(Float, nullable=False)
     observed_time = Column(DateTime, index=True, nullable=False)
 
-    def __init__(self, area, source, number, pga, pgv, observed_time):
+    def __init__(self, area, source, pga, pgv, observed_time):
         self.area = area
         self.source = source
-        self.number = number
         self.pga = pga
         self.pgv = pgv
         self.observed_time = observed_time

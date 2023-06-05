@@ -81,7 +81,6 @@ def process_earthquake():
             data[earthquake.area].append(
                 {
                     "source": earthquake.source,
-                    "earthquake_no": earthquake.number,
                     "pga": earthquake.pga,
                     "pgv": earthquake.pgv,
                     "observed_time": data_time.strftime(r"%Y-%m-%d %H:%M:%S"),

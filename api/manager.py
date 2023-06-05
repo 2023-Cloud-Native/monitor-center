@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import wraps
 import math
 from datetime import datetime, timedelta
 import os
@@ -159,34 +160,41 @@ class ElectricityManager(Base):
         )
 
     def update_func(self):
-        try:
-            data = pd.read_csv(self.gen_use_url, header=None)
-            data.columns = [
-                "time",
-                "north_gen",
-                "north_use",
-                "central_gen",
-                "central_use",
-                "south_gen",
-                "south_use",
-                "east_gen",
-                "east_use",
-            ]
-        except Exception as e:
-            self.logging.error(f"Error: {str(e)} when fetching electricity data")
-            self.require_update_database = False
-            self.data = {
-                "updated_time": "N/A",
-                "north_gen": 0,
-                "north_use": 0,
-                "central_gen": 0,
-                "central_use": 0,
-                "south_gen": 0,
-                "south_use": 0,
-            }
-            return
+        RETRIES_LIMIT = 3
+        success = False
 
-        if self.is_outdated(data.iloc[0, 0]):
+        while RETRIES_LIMIT > 0:
+            try:
+                data = pd.read_csv(self.gen_use_url, header=None)
+                data.columns = [
+                    "time",
+                    "north_gen",
+                    "north_use",
+                    "central_gen",
+                    "central_use",
+                    "south_gen",
+                    "south_use",
+                    "east_gen",
+                    "east_use",
+                ]
+                success = True
+                break
+            except Exception as e:
+                self.require_update_database = False
+                self.data = {
+                    "updated_time": "N/A",
+                    "north_gen": 0,
+                    "north_use": 0,
+                    "central_gen": 0,
+                    "central_use": 0,
+                    "south_gen": 0,
+                    "south_use": 0,
+                }
+
+        if not success:
+            self.logging.error(f"Error: {str(e)} when fetching electricity data")
+
+        if success and self.is_outdated(data.iloc[0, 0]):
             self.require_update_database = True
             self.data = {
                 "updated_time": self.updated_time,
@@ -322,10 +330,10 @@ class EarthquakeManager(Base):
             with self.database() as db_session:
                 for town_name, earthquake_data in self.data.items():
                     for earthquake_datum in earthquake_data:
-                        earthquake_number = earthquake_datum["number"]
+                        earthquake_observed_time = earthquake_datum["observed_time"]
                         if (
                             db_session.query(self.instance_cls)
-                            .filter(self.instance_cls.number == earthquake_number)
+                            .filter(self.instance_cls.observed_time == earthquake_observed_time)
                             .filter(self.instance_cls.area == town_name)
                             .first()
                             is not None
@@ -336,7 +344,6 @@ class EarthquakeManager(Base):
                             self.instance_cls(
                                 area=town_name,
                                 source=earthquake_datum["source"],
-                                number=earthquake_number,
                                 pga=earthquake_datum["pga"],
                                 pgv=earthquake_datum["pgv"],
                                 observed_time=earthquake_datum["observed_time"],
