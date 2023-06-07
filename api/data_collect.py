@@ -1,9 +1,11 @@
 from pathlib import Path
+import os
 import time
 import threading
 import sys
 
 sys.path.append(Path(__file__).resolve().parent.parent.__str__())
+os.environ["USE_WRITE_DB"] = "True"
 
 from api.database import init_db, session_maker_modify
 from api.models import Reservoir, Electricity, Earthquake
@@ -23,9 +25,9 @@ if __name__ == "__main__":
     # Create database session
     init_db()
     data_manager = {
-        "reservoir": [ReservoirManager(session_maker_modify, Reservoir), 24 * 60 * 60],
-        "electricity": [ElectricityManager(session_maker_modify, Electricity), 600],
-        "earthquake": [EarthquakeManager(session_maker_modify, Earthquake), 300],
+        "reservoir": [ReservoirManager(session_maker_modify, Reservoir), 60 * 60],
+        "electricity": [ElectricityManager(session_maker_modify, Electricity), 60 * 10],
+        "earthquake": [EarthquakeManager(session_maker_modify, Earthquake), 60 * 5],
     }
 
     thread_manager = [
