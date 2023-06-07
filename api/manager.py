@@ -42,6 +42,8 @@ class ReservoirManager(Base):
             "臺中": {},
             "臺南": {},
         }
+        self.overall_id_update_time = {}
+        self.detail_id_update_time = {}
         self.require_update_database = False
         self.updated_time = None
         super().__init__(
@@ -78,8 +80,8 @@ class ReservoirManager(Base):
                 continue
 
             town_name = county_data["id_to_county"][id_]
-            if "current_capacity" not in self.data[town_name]:
-                self.data[town_name]["current_capacity"] = 0.0
+            if "total_capacity" not in self.data[town_name]:
+                self.data[town_name]["total_capacity"] = 0.0
 
             if "inflow" not in self.data[town_name]:
                 self.data[town_name]["inflow"] = 0.0
@@ -87,9 +89,26 @@ class ReservoirManager(Base):
             if "outflow" not in self.data[town_name]:
                 self.data[town_name]["outflow"] = 0.0
 
-            self.data[town_name]["current_capacity"] += to_float(
-                datum["EffectiveCapacity"]
-            )
+            if id_ in self.overall_id_update_time:
+                new_time = self.format_time(datum["RecordTime"])
+                if new_time > self.overall_id_update_time[id_][0]:
+                    self.data[town_name]["total_capacity"] += (
+                        to_float(datum["EffectiveCapacity"])
+                        - self.overall_id_update_time[id_][1]
+                    )
+                    self.overall_id_update_time[id_] = (
+                        new_time,
+                        to_float(datum["EffectiveCapacity"]),
+                    )
+            else:
+                self.data[town_name]["total_capacity"] += to_float(
+                    datum["EffectiveCapacity"]
+                )
+                self.overall_id_update_time[id_] = (
+                    self.format_time(datum["RecordTime"]),
+                    to_float(datum["EffectiveCapacity"]),
+                )
+
             self.data[town_name]["inflow"] += to_float(datum["InflowVolume"])
             self.data[town_name]["outflow"] += to_float(datum["OutflowTotal"])
             self.data[town_name]["updated_time"] = datetime.now()
@@ -108,12 +127,29 @@ class ReservoirManager(Base):
 
             town_name = county_data["id_to_county"][id_]
 
-            if "total_capacity" not in self.data[town_name]:
-                self.data[town_name]["total_capacity"] = 0.0
+            if "current_capacity" not in self.data[town_name]:
+                self.data[town_name]["current_capacity"] = 0.0
 
-            self.data[town_name]["total_capacity"] += to_float(
-                datum["EffectiveWaterStorageCapacity"]
-            )
+            if id_ in self.detail_id_update_time:
+                new_time = self.format_time(datum["ObservationTime"])
+                if new_time > self.detail_id_update_time[id_][0]:
+                    self.data[town_name]["current_capacity"] += (
+                        to_float(datum["EffectiveWaterStorageCapacity"])
+                        - self.detail_id_update_time[id_][1]
+                    )
+                    self.detail_id_update_time[id_] = (
+                        new_time,
+                        to_float(datum["EffectiveWaterStorageCapacity"]),
+                    )
+            else:
+                self.data[town_name]["current_capacity"] += to_float(
+                    datum["EffectiveWaterStorageCapacity"]
+                )
+                self.detail_id_update_time[id_] = (
+                    self.format_time(datum["ObservationTime"]),
+                    to_float(datum["EffectiveWaterStorageCapacity"]),
+                )
+
             self.data[town_name]["updated_time"] = datetime.now()
 
         for key in self.data.keys():
@@ -128,6 +164,8 @@ class ReservoirManager(Base):
             "臺中": defaultdict(float),
             "臺南": defaultdict(float),
         }
+        self.overall_id_update_time.clear()
+        self.detail_id_update_time.clear()
         self.update_reservoir_overall()
         self.update_reservoir_details()
 
@@ -336,7 +374,10 @@ class EarthquakeManager(Base):
                         earthquake_observed_time = earthquake_datum["observed_time"]
                         if (
                             db_session.query(self.instance_cls)
-                            .filter(self.instance_cls.observed_time == earthquake_observed_time)
+                            .filter(
+                                self.instance_cls.observed_time
+                                == earthquake_observed_time
+                            )
                             .filter(self.instance_cls.area == town_name)
                             .first()
                             is not None

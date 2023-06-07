@@ -53,8 +53,8 @@ services:
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_USER_NAME: ${MYSQL_USER_NAME}
-      MYSQL_USER_PASSWORD: ${MYSQL_USER_PASSWORD}
+      MYSQL_USER_NAME: ${MYSQL_WRITE_NAME}
+      MYSQL_USER_PASSWORD: ${MYSQL_WRITE_PASSWORD}
     volumes:
       - dbdata:/var/lib/mysql
       - ./mysql:/docker-entrypoint-initdb.d:ro
@@ -63,7 +63,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: mysqladmin ping -h localhost -u ${MYSQL_USER_NAME} --password=${MYSQL_USER_PASSWORD} || exit 1
+      test: mysqladmin ping -h localhost -u ${MYSQL_WRITE_NAME} --password=${MYSQL_WRITE_PASSWORD} || exit 1
       interval: 30s
       timeout: 10s
       retries: 5

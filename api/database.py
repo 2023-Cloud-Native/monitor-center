@@ -9,10 +9,16 @@ import logging
 
 dotenv.load_dotenv(".env")
 
-engine = create_engine(
-    f"mysql+pymysql://{os.getenv('MYSQL_USER_NAME')}:{os.getenv('MYSQL_USER_PASSWORD')}@{os.getenv('MYSQL_DB_NAME')}:{os.getenv('MYSQL_PORT')}/{os.getenv('MYSQL_DATABASE')}",
-    echo=True,
-)
+if os.environ.get("USE_WRITE_DB") is not None:
+    engine = create_engine(
+        f"mysql+pymysql://{os.getenv('MYSQL_WRITE_NAME')}:{os.getenv('MYSQL_WRITE_PASSWORD')}@{os.getenv('MYSQL_DB_HOST')}:{os.getenv('MYSQL_PORT')}/{os.getenv('MYSQL_DATABASE')}",
+        echo=True,
+    )
+else:
+    engine = create_engine(
+        f"mysql+pymysql://{os.getenv('MYSQL_READ_USER')}:{os.getenv('MYSQL_READ_PASSWORD')}@{os.getenv('MYSQL_DB_HOST')}:{os.getenv('MYSQL_PORT')}/{os.getenv('MYSQL_DATABASE')}",
+        echo=True,
+    )
 
 DBSession = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
